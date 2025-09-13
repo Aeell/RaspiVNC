@@ -22,6 +22,7 @@ export default function VncClient() {
     connect,
     disconnect,
     sendMessage,
+    sendKeySequence,
     isConnecting,
     error,
     canvasRef
@@ -60,11 +61,14 @@ export default function VncClient() {
   };
 
   const sendCtrlAltDel = () => {
-    // Send Ctrl+Alt+Del key sequence
-    sendMessage({
-      type: 'keyboard',
-      data: { keys: ['Control_L', 'Alt_L', 'Delete'], action: 'keydown' }
-    });
+    // Send Ctrl+Alt+Del key sequence with proper keydown/keyup pairs
+    const keys = ['Control_L', 'Alt_L', 'Delete'];
+    
+    // Press keys down
+    sendKeySequence(keys, 'press');
+    
+    // Release keys in reverse order (standard practice)
+    sendKeySequence(keys.reverse(), 'release');
   };
 
   return (

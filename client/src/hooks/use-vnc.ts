@@ -159,15 +159,29 @@ export function useVnc({ onStatusChange, onStatsUpdate, onError }: UseVncOptions
   const handleMouseEvent = useCallback((event: MouseEvent, action: string) => {
     if (!canvasRef.current) return;
     
-    const rect = canvasRef.current.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Calculate coordinates relative to canvas CSS size
+    const cssX = event.clientX - rect.left;
+    const cssY = event.clientY - rect.top;
+    
+    // Scale coordinates to canvas internal resolution (800x600)
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const scaledX = cssX * scaleX;
+    const scaledY = cssY * scaleY;
+    
+    // Clamp coordinates to canvas bounds
+    const x = Math.max(0, Math.min(canvas.width - 1, Math.floor(scaledX)));
+    const y = Math.max(0, Math.min(canvas.height - 1, Math.floor(scaledY)));
     
     sendMessage({
       type: 'mouse',
       data: {
-        x: Math.floor(x),
-        y: Math.floor(y),
+        x,
+        y,
         button: event.button + 1,
         action
       }
@@ -188,20 +202,78 @@ export function useVnc({ onStatusChange, onStatsUpdate, onError }: UseVncOptions
     });
   }, [sendMessage]);
 
+  // Wheel/scroll event handler
+  const handleWheelEvent = useCallback((event: WheelEvent) => {
+    event.preventDefault();
+    
+    if (!canvasRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Calculate coordinates relative to canvas CSS size
+    const cssX = event.clientX - rect.left;
+    const cssY = event.clientY - rect.top;
+    
+    // Scale coordinates to canvas internal resolution
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const scaledX = cssX * scaleX;
+    const scaledY = cssY * scaleY;
+    
+    // Clamp coordinates to canvas bounds
+    const x = Math.max(0, Math.min(canvas.width - 1, Math.floor(scaledX)));
+    const y = Math.max(0, Math.min(canvas.height - 1, Math.floor(scaledY)));
+    
+    // Determine wheel direction and button
+    const button = event.deltaY < 0 ? 4 : 5; // Button 4 for scroll up, 5 for scroll down
+    
+    // Send wheel events as button press/release pairs
+    sendMessage({
+      type: 'mouse',
+      data: { x, y, button, action: 'mousedown' }
+    });
+    
+    sendMessage({
+      type: 'mouse',
+      data: { x, y, button, action: 'mouseup' }
+    });
+  }, [sendMessage]);
+
+  // Auto-focus canvas on connection
+  useEffect(() => {
+    if (canvasRef.current && !isConnecting) {
+      // Focus canvas when connected
+      const canvas = canvasRef.current;
+      if (canvas) {
+        canvas.focus();
+      }
+    }
+  }, [isConnecting]);
+
   // Attach event listeners to canvas
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const mouseDown = (e: MouseEvent) => handleMouseEvent(e, 'mousedown');
+    const mouseDown = (e: MouseEvent) => {
+      // Focus canvas on first click to ensure keyboard events work
+      if (document.activeElement !== canvas) {
+        canvas.focus();
+      }
+      handleMouseEvent(e, 'mousedown');
+    };
     const mouseUp = (e: MouseEvent) => handleMouseEvent(e, 'mouseup');
     const mouseMove = (e: MouseEvent) => handleMouseEvent(e, 'mousemove');
     const keyDown = (e: KeyboardEvent) => handleKeyEvent(e, 'keydown');
     const keyUp = (e: KeyboardEvent) => handleKeyEvent(e, 'keyup');
+    const wheel = (e: WheelEvent) => handleWheelEvent(e);
 
     canvas.addEventListener('mousedown', mouseDown);
     canvas.addEventListener('mouseup', mouseUp);
     canvas.addEventListener('mousemove', mouseMove);
+    canvas.addEventListener('wheel', wheel);
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     
     // Canvas needs to be focusable for keyboard events
@@ -213,15 +285,31 @@ export function useVnc({ onStatusChange, onStatsUpdate, onError }: UseVncOptions
       canvas.removeEventListener('mousedown', mouseDown);
       canvas.removeEventListener('mouseup', mouseUp);
       canvas.removeEventListener('mousemove', mouseMove);
+      canvas.removeEventListener('wheel', wheel);
       canvas.removeEventListener('keydown', keyDown);
       canvas.removeEventListener('keyup', keyUp);
     };
-  }, [handleMouseEvent, handleKeyEvent]);
+  }, [handleMouseEvent, handleKeyEvent, handleWheelEvent]);
+
+  // Helper function to send special key sequences
+  const sendKeySequence = useCallback((keys: string[], action: 'press' | 'release') => {
+    keys.forEach(key => {
+      sendMessage({
+        type: 'keyboard',
+        data: {
+          key,
+          keyCode: 0, // Special keys don't need keyCode
+          action: action === 'press' ? 'keydown' : 'keyup'
+        }
+      });
+    });
+  }, [sendMessage]);
 
   return {
     connect,
     disconnect,
     sendMessage,
+    sendKeySequence,
     isConnecting,
     error,
     canvasRef
