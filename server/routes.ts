@@ -34,6 +34,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               timeout: 10000
             });
 
+            // Explicit timeout handler for hanging connections
+            vncSocket.on('timeout', () => {
+              console.log(`Connection timeout to ${connectionData.host}:${connectionData.port}`);
+              vncSocket.destroy();
+              if (ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                  type: 'error',
+                  data: { message: `Connection timeout to ${connectionData.host}:${connectionData.port}` }
+                }));
+              }
+            });
+
             vncSocket.on('connect', () => {
               console.log(`Connected to VNC server at ${connectionData.host}:${connectionData.port}`);
               isConnected = true;
