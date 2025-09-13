@@ -104,9 +104,9 @@ export default function VncClient() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           {/* Connection Panel */}
-          <div className="lg:col-span-1">
+          <div className="md:col-span-1">
             <ConnectionPanel
               onConnect={handleConnect}
               onDisconnect={handleDisconnect}
@@ -127,7 +127,7 @@ export default function VncClient() {
           </div>
 
           {/* VNC Viewer */}
-          <div className="lg:col-span-3">
+          <div className="md:col-span-3">
             <VncViewer
               canvasRef={canvasRef}
               connectionStatus={connectionStatus}
